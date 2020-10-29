@@ -27,9 +27,9 @@ public:
 
   // TestTimeSystem
   void sleep(const Duration& duration) override;
-  Thread::CondVar::WaitStatus
-  waitFor(Thread::MutexBasicLockable& mutex, Thread::CondVar& condvar,
-          const Duration& duration) noexcept EXCLUSIVE_LOCKS_REQUIRED(mutex) override;
+  Thread::CondVar::WaitStatus waitFor(Thread::MutexBasicLockable& mutex, Thread::CondVar& condvar,
+                                      const Duration& duration) noexcept
+      EXCLUSIVE_LOCKS_REQUIRED(mutex) override;
 
   // TimeSource
   SystemTime systemTime() override;
