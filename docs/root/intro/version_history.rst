@@ -5,6 +5,7 @@ Version history
 ================
 Changes
 -------
+* http: fixed URL parsing for HTTP/1.1 fully qualified URLs and connect requests containing IPv6 addresses.
 * listener: fix crash when disabling or re-enabling listeners due to overload while processing LDS updates.
 * udp: fixed issue in which receiving truncated UDP datagrams would cause Envoy to crash.
 
