@@ -15,7 +15,7 @@ namespace Extensions {
 namespace AccessLoggers {
 namespace GrpcCommon {
 
-OptRef<const envoy::config::core::v3::RetryPolicy> optionalRetryPolicy(
+OptRef<const envoy::config::route::v3::RetryPolicy> optionalRetryPolicy(
     const envoy::extensions::access_loggers::grpc::v3::CommonGrpcAccessLogConfig& config) {
   if (!config.has_grpc_stream_retry_policy()) {
     return {};
