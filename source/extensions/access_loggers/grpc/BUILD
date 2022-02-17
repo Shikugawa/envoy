@@ -33,6 +33,7 @@ envoy_cc_library(
         "//envoy/grpc:async_client_manager_interface",
         "//envoy/local_info:local_info_interface",
         "//envoy/thread_local:thread_local_interface",
+        "//source/common/access_log:access_log_lib",
         "//source/common/config:utility_lib",
         "//source/common/grpc:typed_async_client_lib",
         "//source/extensions/access_loggers/common:grpc_access_logger",
@@ -62,6 +63,7 @@ envoy_cc_library(
     srcs = ["http_grpc_access_log_impl.cc"],
     hdrs = ["http_grpc_access_log_impl.h"],
     deps = [
+        ":config_utils",
         ":grpc_access_log_lib",
         ":grpc_access_log_utils",
         "//source/extensions/access_loggers/common:access_log_base",
@@ -99,7 +101,6 @@ envoy_cc_extension(
     srcs = ["http_config.cc"],
     hdrs = ["http_config.h"],
     deps = [
-        ":config_utils",
         "//envoy/server:access_log_config_interface",
         "//source/common/common:assert_lib",
         "//source/common/grpc:async_client_lib",

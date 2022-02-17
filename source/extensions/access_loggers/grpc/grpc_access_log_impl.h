@@ -17,22 +17,25 @@ namespace Extensions {
 namespace AccessLoggers {
 namespace GrpcCommon {
 
-class GrpcAccessLoggerImpl
-    : public Common::GrpcAccessLogger<envoy::data::accesslog::v3::HTTPAccessLogEntry,
-                                      envoy::data::accesslog::v3::TCPAccessLogEntry,
-                                      envoy::service::accesslog::v3::StreamAccessLogsMessage,
-                                      envoy::service::accesslog::v3::StreamAccessLogsResponse> {
+class GrpcAccessLoggerImpl : public Common::CriticalGrpcAccessLogger<
+                                 envoy::data::accesslog::v3::HTTPAccessLogEntry,
+                                 envoy::data::accesslog::v3::TCPAccessLogEntry,
+                                 envoy::service::accesslog::v3::StreamAccessLogsMessage,
+                                 envoy::service::accesslog::v3::StreamAccessLogsResponse,
+                                 envoy::service::accesslog::v3::CriticalAccessLogsMessage,
+                                 envoy::service::accesslog::v3::CriticalAccessLogsResponse> {
 public:
   GrpcAccessLoggerImpl(
       const Grpc::RawAsyncClientSharedPtr& client,
       const envoy::extensions::access_loggers::grpc::v3::CommonGrpcAccessLogConfig& config,
-      std::chrono::milliseconds buffer_flush_interval_msec, uint64_t max_buffer_size_bytes,
       Event::Dispatcher& dispatcher, const LocalInfo::LocalInfo& local_info, Stats::Scope& scope);
 
 private:
   // Extensions::AccessLoggers::GrpcCommon::GrpcAccessLogger
   void addEntry(envoy::data::accesslog::v3::HTTPAccessLogEntry&& entry) override;
   void addEntry(envoy::data::accesslog::v3::TCPAccessLogEntry&& entry) override;
+  void addCriticalEntry(envoy::data::accesslog::v3::HTTPAccessLogEntry&& entry) override;
+  void addCriticalEntry(envoy::data::accesslog::v3::TCPAccessLogEntry&& entry) override;
   bool isEmpty() override;
   void initMessage() override;
 
@@ -53,9 +56,7 @@ private:
   // Common::GrpcAccessLoggerCache
   GrpcAccessLoggerImpl::SharedPtr
   createLogger(const envoy::extensions::access_loggers::grpc::v3::CommonGrpcAccessLogConfig& config,
-               const Grpc::RawAsyncClientSharedPtr& client,
-               std::chrono::milliseconds buffer_flush_interval_msec, uint64_t max_buffer_size_bytes,
-               Event::Dispatcher& dispatcher) override;
+               const Grpc::RawAsyncClientSharedPtr& client, Event::Dispatcher& dispatcher) override;
 
   const LocalInfo::LocalInfo& local_info_;
 };

@@ -4,11 +4,13 @@
 #include "envoy/data/accesslog/v3/accesslog.pb.h"
 #include "envoy/extensions/access_loggers/grpc/v3/als.pb.h"
 
+#include "source/common/access_log/access_log_impl.h"
 #include "source/common/common/assert.h"
 #include "source/common/config/utility.h"
 #include "source/common/http/headers.h"
 #include "source/common/network/utility.h"
 #include "source/common/stream_info/utility.h"
+#include "source/extensions/access_loggers/grpc/config_utils.h"
 #include "source/extensions/access_loggers/grpc/grpc_access_log_utils.h"
 
 namespace Envoy {
@@ -25,11 +27,11 @@ HttpGrpcAccessLog::ThreadLocalLogger::ThreadLocalLogger(
 
 HttpGrpcAccessLog::HttpGrpcAccessLog(AccessLog::FilterPtr&& filter,
                                      const HttpGrpcAccessLogConfig config,
-                                     ThreadLocal::SlotAllocator& tls,
-                                     GrpcCommon::GrpcAccessLoggerCacheSharedPtr access_logger_cache)
+                                     Server::Configuration::CommonFactoryContext& context)
     : Common::ImplBase(std::move(filter)),
       config_(std::make_shared<const HttpGrpcAccessLogConfig>(std::move(config))),
-      tls_slot_(tls.allocateSlot()), access_logger_cache_(std::move(access_logger_cache)) {
+      tls_slot_(context.threadLocal().allocateSlot()),
+      access_logger_cache_(GrpcCommon::getGrpcAccessLoggerCacheSingleton(context)) {
   for (const auto& header : config_->additional_request_headers_to_log()) {
     request_headers_to_log_.emplace_back(header);
   }
@@ -47,6 +49,12 @@ HttpGrpcAccessLog::HttpGrpcAccessLog(AccessLog::FilterPtr&& filter,
         return std::make_shared<ThreadLocalLogger>(access_logger_cache->getOrCreateLogger(
             config->common_config(), Common::GrpcAccessLoggerType::HTTP));
       });
+
+  if (config_->has_common_config() && config_->common_config().has_critical_buffer_log_filter()) {
+    critical_log_filter_ = AccessLog::FilterFactory::fromProto(
+        config_->common_config().critical_buffer_log_filter(), context.runtime(),
+        context.api().randomGenerator(), context.messageValidationVisitor());
+  }
 }
 
 void HttpGrpcAccessLog::emitLog(const Http::RequestHeaderMap& request_headers,
@@ -162,7 +170,12 @@ void HttpGrpcAccessLog::emitLog(const Http::RequestHeaderMap& request_headers,
     }
   }
 
-  tls_slot_->getTyped<ThreadLocalLogger>().logger_->log(std::move(log_entry));
+  if (critical_log_filter_->evaluate(stream_info, request_headers, response_headers,
+                                     response_trailers)) {
+    tls_slot_->getTyped<ThreadLocalLogger>().logger_->criticalLog(std::move(log_entry));
+  } else {
+    tls_slot_->getTyped<ThreadLocalLogger>().logger_->log(std::move(log_entry));
+  }
 }
 
 } // namespace HttpGrpc

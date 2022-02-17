@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chrono>
+#include <cstdint>
 #include <memory>
 
 #include "envoy/config/core/v3/config_source.pb.h"
@@ -10,6 +12,7 @@
 #include "envoy/thread_local/thread_local.h"
 
 #include "source/common/common/assert.h"
+#include "source/common/grpc/buffered_async_client.h"
 #include "source/common/grpc/typed_async_client.h"
 #include "source/common/http/utility.h"
 #include "source/common/protobuf/utility.h"
@@ -25,6 +28,18 @@ namespace Common {
 enum class GrpcAccessLoggerType { TCP, HTTP };
 
 namespace Detail {
+
+constexpr absl::string_view GRPC_LOG_STATS_PREFIX = "access_logs.grpc_access_log.";
+
+#define CRITICAL_ACCESS_LOGGER_GRPC_CLIENT_STATS(COUNTER, GAUGE)                                   \
+  COUNTER(critical_logs_message_timeout)                                                           \
+  COUNTER(critical_logs_nack_received)                                                             \
+  COUNTER(critical_logs_ack_received)                                                              \
+  GAUGE(pending_critical_logs, Accumulate)
+
+struct GrpcCriticalAccessLogClientGrpcClientStats {
+  CRITICAL_ACCESS_LOGGER_GRPC_CLIENT_STATS(GENERATE_COUNTER_STRUCT, GENERATE_GAUGE_STRUCT)
+};
 
 /**
  * Fully specialized types of the interfaces below are available through the
@@ -53,6 +68,18 @@ public:
    * @param entry supplies the access log to send.
    */
   virtual void log(TcpLogProto&& entry) PURE;
+
+  /**
+   * Critical HTTP log entry.
+   * @param entry supplies the access log to send.
+   */
+  virtual void criticalLog(HttpLogProto&& entry) PURE;
+
+  /**
+   * Critical TCP log entry.
+   * @param entry supplies the access log to send.
+   */
+  virtual void criticalLog(TcpLogProto&& entry) PURE;
 };
 
 /**
@@ -145,6 +172,69 @@ public:
   const absl::optional<envoy::config::core::v3::RetryPolicy> grpc_stream_retry_policy_;
 };
 
+template <class RequestType, class ResponseType> class GrpcCriticalAccessLogClient {
+public:
+  struct CriticalLogStreamCallbacks : public Grpc::AsyncStreamCallbacks<ResponseType> {
+    explicit CriticalLogStreamCallbacks(GrpcCriticalAccessLogClient& parent) : parent_(parent) {}
+
+    // Grpc::AsyncStreamCallbacks
+    void onCreateInitialMetadata(Http::RequestHeaderMap&) override {}
+    void onReceiveInitialMetadata(Http::ResponseHeaderMapPtr&&) override {}
+    void onReceiveMessage(std::unique_ptr<ResponseType>&& message) override {
+      const auto& id = message->id();
+
+      switch (message->status()) {
+      case envoy::service::accesslog::v3::CriticalAccessLogsResponse::ACK:
+        parent_.stats_.critical_logs_ack_received_.inc();
+        parent_.stats_.pending_critical_logs_.dec();
+        parent_.buffered_client_.onSuccess(id);
+        break;
+      case envoy::service::accesslog::v3::CriticalAccessLogsResponse::NACK:
+        parent_.stats_.critical_logs_nack_received_.inc();
+        parent_.buffered_client_.onError(id);
+        break;
+      default:
+        return;
+      }
+    }
+    void onReceiveTrailingMetadata(Http::ResponseTrailerMapPtr&&) override {}
+    void onRemoteClose(Grpc::Status::GrpcStatus, const std::string&) override {}
+
+    GrpcCriticalAccessLogClient& parent_;
+  };
+
+  GrpcCriticalAccessLogClient(const Grpc::RawAsyncClientSharedPtr& client,
+                              const Protobuf::MethodDescriptor& method,
+                              Event::Dispatcher& dispatcher, Stats::Scope& scope,
+                              const std::string& log_name,
+                              std::chrono::milliseconds message_ack_timeout,
+                              uint64_t max_pending_buffer_size_bytes)
+      : stats_({CRITICAL_ACCESS_LOGGER_GRPC_CLIENT_STATS(
+            POOL_COUNTER_PREFIX(scope, GRPC_LOG_STATS_PREFIX.data()),
+            POOL_GAUGE_PREFIX(scope, GRPC_LOG_STATS_PREFIX.data()))}),
+        log_name_(log_name), stream_callbacks_(*this),
+        buffered_client_(max_pending_buffer_size_bytes, method, stream_callbacks_,
+                         Grpc::AsyncClient<RequestType, ResponseType>(client), dispatcher,
+                         message_ack_timeout) {}
+
+  void flush(RequestType& message) {
+    auto id = buffered_client_.bufferMessage(message);
+    if (!id.has_value()) {
+      return;
+    }
+    message.set_id(*id);
+    buffered_client_.sendBufferedMessages();
+  }
+
+private:
+  friend CriticalLogStreamCallbacks;
+
+  GrpcCriticalAccessLogClientGrpcClientStats stats_;
+  const std::string log_name_;
+  CriticalLogStreamCallbacks stream_callbacks_;
+  Grpc::BufferedAsyncClient<RequestType, ResponseType> buffered_client_;
+};
+
 } // namespace Detail
 
 /**
@@ -172,19 +262,20 @@ class GrpcAccessLogger : public Detail::GrpcAccessLogger<HttpLogProto, TcpLogPro
 public:
   using Interface = Detail::GrpcAccessLogger<HttpLogProto, TcpLogProto>;
 
-  GrpcAccessLogger(const Grpc::RawAsyncClientSharedPtr& client,
-                   std::chrono::milliseconds buffer_flush_interval_msec,
-                   uint64_t max_buffer_size_bytes, Event::Dispatcher& dispatcher,
-                   Stats::Scope& scope, std::string access_log_prefix,
-                   const Protobuf::MethodDescriptor& service_method,
-                   OptRef<const envoy::config::core::v3::RetryPolicy> retry_policy)
-      : client_(client, service_method, retry_policy),
-        buffer_flush_interval_msec_(buffer_flush_interval_msec),
+  GrpcAccessLogger(
+      const Grpc::RawAsyncClientSharedPtr& client,
+      const envoy::extensions::access_loggers::grpc::v3::CommonGrpcAccessLogConfig& config,
+      Event::Dispatcher& dispatcher, Stats::Scope& scope, std::string access_log_prefix,
+      const Protobuf::MethodDescriptor& service_method,
+      OptRef<const envoy::config::core::v3::RetryPolicy> retry_policy)
+      : max_buffer_size_bytes_(PROTOBUF_GET_WRAPPED_OR_DEFAULT(config, buffer_size_bytes, 16384)),
+        buffer_flush_interval_msec_(
+            PROTOBUF_GET_MS_OR_DEFAULT(config, buffer_flush_interval, 1000)),
+        client_(client, service_method, retry_policy),
         flush_timer_(dispatcher.createTimer([this]() {
           flush();
           flush_timer_->enableTimer(buffer_flush_interval_msec_);
         })),
-        max_buffer_size_bytes_(max_buffer_size_bytes),
         stats_({ALL_GRPC_ACCESS_LOGGER_STATS(POOL_COUNTER_PREFIX(scope, access_log_prefix))}) {
     flush_timer_->enableTimer(buffer_flush_interval_msec_);
   }
@@ -209,6 +300,8 @@ public:
   }
 
 protected:
+  const uint64_t max_buffer_size_bytes_;
+  const std::chrono::milliseconds buffer_flush_interval_msec_;
   Detail::GrpcAccessLogClient<LogRequest, LogResponse> client_;
   LogRequest message_;
 
@@ -250,11 +343,63 @@ private:
     return false;
   }
 
-  const std::chrono::milliseconds buffer_flush_interval_msec_;
   const Event::TimerPtr flush_timer_;
-  const uint64_t max_buffer_size_bytes_;
-  uint64_t approximate_message_size_bytes_ = 0;
   GrpcAccessLoggerStats stats_;
+  uint64_t approximate_message_size_bytes_ = 0;
+};
+
+template <typename HttpLogProto, typename TcpLogProto, typename LogRequest, typename LogResponse,
+          typename CriticalLogRequest, typename CriticalLogResponse>
+class CriticalGrpcAccessLogger
+    : public GrpcAccessLogger<HttpLogProto, TcpLogProto, LogRequest, LogResponse> {
+public:
+  using Base = GrpcAccessLogger<HttpLogProto, TcpLogProto, LogRequest, LogResponse>;
+
+  explicit CriticalGrpcAccessLogger(
+      const Grpc::RawAsyncClientSharedPtr& client,
+      const envoy::extensions::access_loggers::grpc::v3::CommonGrpcAccessLogConfig& config,
+      Event::Dispatcher& dispatcher, Stats::Scope& scope, std::string access_log_prefix,
+      const Protobuf::MethodDescriptor& service_method,
+      OptRef<const envoy::config::core::v3::RetryPolicy> retry_policy)
+      : GrpcAccessLogger<HttpLogProto, TcpLogProto, LogRequest, LogResponse>(
+            client, config, dispatcher, scope, access_log_prefix, service_method, retry_policy),
+        critical_client_(
+            client, service_method, dispatcher, scope, access_log_prefix,
+            std::chrono::milliseconds(
+                PROTOBUF_GET_MS_OR_DEFAULT(config, message_ack_timeout, 5000)),
+            PROTOBUF_GET_WRAPPED_OR_DEFAULT(config, max_pending_buffer_size_bytes, 16384)),
+        critical_flush_timer_(dispatcher.createTimer([this] {
+          flushCritical();
+          critical_flush_timer_->enableTimer(Base::buffer_flush_interval_msec_);
+        })) {}
+
+  void criticalLog(HttpLogProto&& entry) override {
+    approximate_critical_message_size_bytes_ += entry.ByteSizeLong();
+    addCriticalEntry(std::move(entry));
+    if (approximate_critical_message_size_bytes_ >= Base::max_buffer_size_bytes_) {
+      flushCritical();
+    }
+  }
+
+  void criticalLog(TcpLogProto&&) override {
+    // TODO(shikugawa): Support TCP critical log
+  }
+
+  virtual void addCriticalEntry(HttpLogProto&& entry) PURE;
+  virtual void addCriticalEntry(TcpLogProto&& entry) PURE;
+
+  void flushCritical() {
+    critical_client_.flush(critical_message_);
+    approximate_critical_message_size_bytes_ = 0;
+    critical_message_.Clear();
+  }
+
+  Detail::GrpcCriticalAccessLogClient<CriticalLogRequest, CriticalLogResponse> critical_client_;
+  CriticalLogRequest critical_message_;
+
+private:
+  uint64_t approximate_critical_message_size_bytes_ = 0;
+  const Event::TimerPtr critical_flush_timer_;
 };
 
 /**
@@ -290,10 +435,7 @@ public:
     // the main thread if necessary.
     auto client = async_client_manager_.factoryForGrpcService(config.grpc_service(), scope_, true)
                       ->createUncachedRawAsyncClient();
-    const auto logger = createLogger(
-        config, std::move(client),
-        std::chrono::milliseconds(PROTOBUF_GET_MS_OR_DEFAULT(config, buffer_flush_interval, 1000)),
-        PROTOBUF_GET_WRAPPED_OR_DEFAULT(config, buffer_size_bytes, 16384), cache.dispatcher_);
+    const auto logger = createLogger(config, std::move(client), cache.dispatcher_);
     cache.access_loggers_.emplace(cache_key, logger);
     return logger;
   }
@@ -318,7 +460,6 @@ private:
   // Create the specific logger type for this cache.
   virtual typename GrpcAccessLogger::SharedPtr
   createLogger(const ConfigProto& config, const Grpc::RawAsyncClientSharedPtr& client,
-               std::chrono::milliseconds buffer_flush_interval_msec, uint64_t max_buffer_size_bytes,
                Event::Dispatcher& dispatcher) PURE;
 
   Grpc::AsyncClientManager& async_client_manager_;
