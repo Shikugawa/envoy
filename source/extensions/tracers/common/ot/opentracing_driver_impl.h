@@ -65,8 +65,8 @@ public:
 
   // Tracer::TracingDriver
   Tracing::SpanPtr startSpan(const Tracing::Config& config, Tracing::TraceContext& trace_context,
-                             const std::string& operation_name, SystemTime start_time,
-                             const Tracing::Decision tracing_decision) override;
+                             const std::string& operation_name,
+                             const StreamInfo::StreamInfo& stream_info) override;
 
   virtual opentracing::Tracer& tracer() PURE;
 

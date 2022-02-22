@@ -106,8 +106,8 @@ public:
    * Start driver specific span.
    */
   virtual SpanPtr startSpan(const Config& config, TraceContext& trace_conext,
-                            const std::string& operation_name, SystemTime start_time,
-                            const Tracing::Decision tracing_decision) PURE;
+                            const std::string& operation_name,
+                            const StreamInfo::StreamInfo& stream_info) PURE;
 };
 
 using DriverPtr = std::unique_ptr<Driver>;

@@ -57,15 +57,13 @@ public:
   ~MockHttpTracer() override;
 
   SpanPtr startSpan(const Config& config, Http::RequestHeaderMap& request_headers,
-                    const StreamInfo::StreamInfo& stream_info,
-                    const Tracing::Decision tracing_decision) override {
-    return SpanPtr{startSpan_(config, request_headers, stream_info, tracing_decision)};
+                    const StreamInfo::StreamInfo& stream_info) override {
+    return SpanPtr{startSpan_(config, request_headers, stream_info)};
   }
 
   MOCK_METHOD(Span*, startSpan_,
               (const Config& config, Http::RequestHeaderMap& request_headers,
-               const StreamInfo::StreamInfo& stream_info,
-               const Tracing::Decision tracing_decision));
+               const StreamInfo::StreamInfo& stream_info));
 };
 
 class MockDriver : public Driver {
@@ -74,14 +72,14 @@ public:
   ~MockDriver() override;
 
   SpanPtr startSpan(const Config& config, TraceContext& trace_context,
-                    const std::string& operation_name, SystemTime start_time,
-                    const Tracing::Decision tracing_decision) override {
-    return SpanPtr{startSpan_(config, trace_context, operation_name, start_time, tracing_decision)};
+                    const std::string& operation_name,
+                    const StreamInfo::StreamInfo& stream_info) override {
+    return SpanPtr{startSpan_(config, trace_context, operation_name, stream_info)};
   }
 
   MOCK_METHOD(Span*, startSpan_,
               (const Config& config, TraceContext& trace_context, const std::string& operation_name,
-               SystemTime start_time, const Tracing::Decision tracing_decision));
+               const StreamInfo::StreamInfo& stream_info));
 };
 
 class MockHttpTracerManager : public HttpTracerManager {

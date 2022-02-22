@@ -7,6 +7,7 @@
 
 #include "source/common/common/base64.h"
 #include "source/common/common/empty_string.h"
+#include "source/common/tracing/http_tracer_impl.h"
 
 #include "absl/strings/str_cat.h"
 #include "google/devtools/cloudtrace/v2/tracing.grpc.pb.h"
@@ -374,10 +375,11 @@ void Driver::applyTraceConfig(const opencensus::proto::trace::v1::TraceConfig& c
 
 Tracing::SpanPtr Driver::startSpan(const Tracing::Config& config,
                                    Tracing::TraceContext& trace_context,
-                                   const std::string& operation_name, SystemTime start_time,
-                                   const Tracing::Decision tracing_decision) {
-  return std::make_unique<Span>(config, oc_config_, trace_context, operation_name, start_time,
-                                tracing_decision);
+                                   const std::string& operation_name,
+                                   const StreamInfo::StreamInfo& stream_info) {
+  const auto tracing_decision = Tracing::HttpTracerUtility::shouldTraceRequest(stream_info);
+  return std::make_unique<Span>(config, oc_config_, trace_context, operation_name,
+                                stream_info.startTime(), tracing_decision);
 }
 
 } // namespace OpenCensus

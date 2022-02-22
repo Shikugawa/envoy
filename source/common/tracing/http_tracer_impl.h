@@ -79,8 +79,7 @@ using EgressConfig = ConstSingleton<EgressConfigImpl>;
 class HttpNullTracer : public HttpTracer {
 public:
   // Tracing::HttpTracer
-  SpanPtr startSpan(const Config&, Http::RequestHeaderMap&, const StreamInfo::StreamInfo&,
-                    const Tracing::Decision) override {
+  SpanPtr startSpan(const Config&, Http::RequestHeaderMap&, const StreamInfo::StreamInfo&) override {
     return SpanPtr{new NullSpan()};
   }
 };
@@ -91,8 +90,7 @@ public:
 
   // Tracing::HttpTracer
   SpanPtr startSpan(const Config& config, Http::RequestHeaderMap& request_headers,
-                    const StreamInfo::StreamInfo& stream_info,
-                    const Tracing::Decision tracing_decision) override;
+                    const StreamInfo::StreamInfo& stream_info) override;
 
   DriverSharedPtr driverForTest() const { return driver_; }
 

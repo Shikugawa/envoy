@@ -63,8 +63,8 @@ Driver::Driver(const XRayConfiguration& config,
 
 Tracing::SpanPtr Driver::startSpan(const Tracing::Config& config,
                                    Tracing::TraceContext& trace_context,
-                                   const std::string& operation_name, Envoy::SystemTime start_time,
-                                   const Tracing::Decision tracing_decision) {
+                                   const std::string& operation_name,
+                                   const StreamInfo::StreamInfo& stream_info) {
   // First thing is to determine whether this request will be sampled or not.
   // if there's a X-Ray header and it has a sampling decision already determined (i.e. Sample=1)
   // then we can move on; otherwise, we ask the sampling strategy whether this request should be
@@ -75,7 +75,6 @@ Tracing::SpanPtr Driver::startSpan(const Tracing::Config& config,
   // around if no TraceID (which means no x-ray header) then this is a brand new span.
 
   // TODO(marcomagdy) - how do we factor this into the logic above
-  UNREFERENCED_PARAMETER(tracing_decision);
   const auto header = trace_context.getByKey(XRayTraceHeader);
   absl::optional<bool> should_trace;
   XRayHeader xray_header;
@@ -105,7 +104,7 @@ Tracing::SpanPtr Driver::startSpan(const Tracing::Config& config,
 
   auto* tracer = tls_slot_ptr_->getTyped<Driver::TlsTracer>().tracer_.get();
   if (should_trace.value()) {
-    return tracer->startSpan(config, operation_name, start_time,
+    return tracer->startSpan(config, operation_name, stream_info.startTime(),
                              header.has_value() ? absl::optional<XRayHeader>(xray_header)
                                                 : absl::nullopt);
   }

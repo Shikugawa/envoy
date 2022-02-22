@@ -9,6 +9,7 @@
 #include "source/common/common/utility.h"
 #include "source/common/http/header_map_impl.h"
 #include "source/common/tracing/common_values.h"
+#include "source/common/tracing/http_tracer_impl.h"
 #include "source/common/tracing/null_span_impl.h"
 
 namespace Envoy {
@@ -153,8 +154,8 @@ OpenTracingDriver::OpenTracingDriver(Stats::Scope& scope)
 Tracing::SpanPtr OpenTracingDriver::startSpan(const Tracing::Config& config,
                                               Tracing::TraceContext& trace_context,
                                               const std::string& operation_name,
-                                              SystemTime start_time,
-                                              const Tracing::Decision tracing_decision) {
+                                              const StreamInfo::StreamInfo& stream_info) {
+  const auto tracing_decision = Tracing::HttpTracerUtility::shouldTraceRequest(stream_info);
   const PropagationMode propagation_mode = this->propagationMode();
   const opentracing::Tracer& tracer = this->tracer();
   std::unique_ptr<opentracing::Span> active_span;
@@ -195,7 +196,7 @@ Tracing::SpanPtr OpenTracingDriver::startSpan(const Tracing::Config& config,
   opentracing::StartSpanOptions options;
   options.references.emplace_back(opentracing::SpanReferenceType::ChildOfRef,
                                   parent_span_ctx.get());
-  options.start_system_timestamp = start_time;
+  options.start_system_timestamp = stream_info.startTime();
   if (!tracing_decision.traced) {
     options.tags.emplace_back(opentracing::ext::sampling_priority, 0);
   }

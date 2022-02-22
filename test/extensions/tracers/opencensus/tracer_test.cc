@@ -111,9 +111,13 @@ TEST(OpenCensusTracerTest, Span) {
   const std::string operation_name{"my_operation_1"};
   SystemTime start_time;
 
+  StreamInfo::MockStreamInfo stream_info;
+  EXPECT_CALL(stream_info, traceReason()).WillRepeatedly(Return(Tracing::Reason::Sampling));
+  EXPECT_CALL(stream_info, healthCheck()).WillRepeatedly(Return(false));
+  EXPECT_CALL(stream_info, startTime()).WillRepeatedly(Return(SystemTime()));
+
   {
-    Tracing::SpanPtr span = driver->startSpan(config, request_headers, operation_name, start_time,
-                                              {Tracing::Reason::Sampling, true});
+    Tracing::SpanPtr span = driver->startSpan(config, request_headers, operation_name, stream_info);
     span->setOperation("different_name");
     span->setTag("my_key", "my_value");
     span->log(start_time, "my annotation");
@@ -212,11 +216,15 @@ void testIncomingHeaders(
   }
 
   const std::string operation_name{"my_operation_2"};
-  SystemTime start_time;
   Http::TestRequestHeaderMapImpl injected_headers;
+
+  StreamInfo::MockStreamInfo stream_info;
+  EXPECT_CALL(stream_info, traceReason()).WillRepeatedly(Return(Tracing::Reason::Sampling));
+  EXPECT_CALL(stream_info, healthCheck()).WillRepeatedly(Return(false));
+  EXPECT_CALL(stream_info, startTime()).WillRepeatedly(Return(SystemTime()));
+
   {
-    Tracing::SpanPtr span = driver->startSpan(config, request_headers, operation_name, start_time,
-                                              {Tracing::Reason::Sampling, false});
+    Tracing::SpanPtr span = driver->startSpan(config, request_headers, operation_name, stream_info);
     span->injectContext(injected_headers);
     span->finishSpan();
 

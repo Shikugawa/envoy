@@ -1,3 +1,5 @@
+#include <gmock/gmock-actions.h>
+
 #include "source/extensions/tracers/skywalking/skywalking_tracer_impl.h"
 
 #include "test/extensions/tracers/skywalking/skywalking_test_helper.h"
@@ -44,16 +46,20 @@ public:
 
     TestUtility::loadFromYaml(yaml_string, config_);
     driver_ = std::make_unique<Driver>(config_, context_);
+
+    EXPECT_CALL(stream_info_, traceReason()).WillRepeatedly(Return(Tracing::Reason::Sampling));
+    EXPECT_CALL(stream_info_, healthCheck()).WillRepeatedly(Return(false));
+    EXPECT_CALL(stream_info_, startTime()).WillRepeatedly(Return(SystemTime()));
   }
 
 protected:
   NiceMock<Envoy::Server::Configuration::MockTracerFactoryContext> context_;
   NiceMock<Envoy::Tracing::MockConfig> mock_tracing_config_;
-  Event::SimulatedTimeSystem time_system_;
   std::unique_ptr<NiceMock<Grpc::MockAsyncStream>> mock_stream_ptr_{nullptr};
   envoy::config::trace::v3::SkyWalkingConfig config_;
   std::string test_string = "ABCDEFGHIJKLMN";
   DriverPtr driver_;
+  StreamInfo::MockStreamInfo stream_info_;
 };
 
 TEST_F(SkyWalkingDriverTest, SkyWalkingDriverStartSpanTestWithClientConfig) {
@@ -69,8 +75,6 @@ TEST_F(SkyWalkingDriverTest, SkyWalkingDriverStartSpanTestWithClientConfig) {
   )EOF";
   setupSkyWalkingDriver(yaml_string);
 
-  Tracing::Decision decision;
-  decision.traced = true;
   auto& factory_context = context_.server_factory_context_;
 
   {
@@ -82,8 +86,8 @@ TEST_F(SkyWalkingDriverTest, SkyWalkingDriverStartSpanTestWithClientConfig) {
     ON_CALL(mock_tracing_config_, operationName())
         .WillByDefault(Return(Tracing::OperationName::Ingress));
 
-    Tracing::SpanPtr org_span = driver_->startSpan(mock_tracing_config_, request_headers, "TEST_OP",
-                                                   time_system_.systemTime(), decision);
+    Tracing::SpanPtr org_span =
+        driver_->startSpan(mock_tracing_config_, request_headers, "TEST_OP", stream_info_);
     EXPECT_NE(nullptr, org_span.get());
 
     Span* span = dynamic_cast<Span*>(org_span.get());
@@ -107,8 +111,8 @@ TEST_F(SkyWalkingDriverTest, SkyWalkingDriverStartSpanTestWithClientConfig) {
     Http::TestRequestHeaderMapImpl new_request_headers{
         {":path", "/path"}, {":method", "GET"}, {":authority", "test.com"}};
 
-    Tracing::SpanPtr org_span = driver_->startSpan(mock_tracing_config_, new_request_headers, "",
-                                                   time_system_.systemTime(), decision);
+    Tracing::SpanPtr org_span =
+        driver_->startSpan(mock_tracing_config_, new_request_headers, "", stream_info_);
 
     Span* span = dynamic_cast<Span*>(org_span.get());
     ASSERT(span);
@@ -129,8 +133,7 @@ TEST_F(SkyWalkingDriverTest, SkyWalkingDriverStartSpanTestWithClientConfig) {
         {":authority", "test.com"},
         {"sw8", "xxxxxx-error-propagation-header"}};
     Tracing::SpanPtr org_null_span =
-        driver_->startSpan(mock_tracing_config_, error_request_headers, "TEST_OP",
-                           time_system_.systemTime(), decision);
+        driver_->startSpan(mock_tracing_config_, error_request_headers, "TEST_OP", stream_info_);
 
     EXPECT_EQ(nullptr, dynamic_cast<Span*>(org_null_span.get()));
 
@@ -140,11 +143,11 @@ TEST_F(SkyWalkingDriverTest, SkyWalkingDriverStartSpanTestWithClientConfig) {
 
   {
     // Create root segment span with disabled tracing.
-    decision.traced = false;
+    EXPECT_CALL(stream_info_, healthCheck()).WillRepeatedly(Return(true));
     Http::TestRequestHeaderMapImpl request_headers{
         {":path", "/path"}, {":method", "GET"}, {":authority", "test.com"}};
-    Tracing::SpanPtr span = driver_->startSpan(mock_tracing_config_, request_headers, "TEST_OP",
-                                               time_system_.systemTime(), decision);
+    Tracing::SpanPtr span =
+        driver_->startSpan(mock_tracing_config_, request_headers, "TEST_OP", stream_info_);
     Span* new_span = dynamic_cast<Span*>(span.get());
     ASSERT(new_span);
 
@@ -169,8 +172,8 @@ TEST_F(SkyWalkingDriverTest, SkyWalkingDriverStartSpanTestNoClientConfig) {
   Http::TestRequestHeaderMapImpl request_headers{
       {":path", "/path"}, {":method", "GET"}, {":authority", "test.com"}};
 
-  Tracing::SpanPtr org_span = driver_->startSpan(mock_tracing_config_, request_headers, "TEST_OP",
-                                                 time_system_.systemTime(), Tracing::Decision());
+  Tracing::SpanPtr org_span =
+      driver_->startSpan(mock_tracing_config_, request_headers, "TEST_OP", stream_info_);
   EXPECT_NE(nullptr, org_span.get());
 
   Span* span = dynamic_cast<Span*>(org_span.get());

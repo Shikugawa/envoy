@@ -123,8 +123,8 @@ public:
    * ("ingress" or "egress") passed by the caller.
    */
   Tracing::SpanPtr startSpan(const Tracing::Config&, Tracing::TraceContext& trace_context,
-                             const std::string&, SystemTime start_time,
-                             const Tracing::Decision tracing_decision) override;
+                             const std::string&,
+                             const StreamInfo::StreamInfo& stream_info) override;
 
   // Getters to return the ZipkinDriver's key members.
   Upstream::ClusterManager& clusterManager() { return cm_; }

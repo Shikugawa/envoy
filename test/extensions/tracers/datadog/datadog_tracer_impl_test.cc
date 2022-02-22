@@ -1,3 +1,5 @@
+#include <gmock/gmock-actions.h>
+
 #include <chrono>
 #include <memory>
 #include <sstream>
@@ -56,6 +58,9 @@ public:
     }
 
     driver_ = std::make_unique<Driver>(datadog_config, cm_, stats_, tls_, runtime_);
+    EXPECT_CALL(stream_info_, traceReason()).WillRepeatedly(Return(Tracing::Reason::Sampling));
+    EXPECT_CALL(stream_info_, healthCheck()).WillRepeatedly(Return(false));
+    EXPECT_CALL(stream_info_, startTime()).WillRepeatedly(Return(SystemTime()));
   }
 
   void setupValidDriver() {
@@ -73,7 +78,6 @@ public:
   Http::TestRequestHeaderMapImpl request_headers_{
       {":path", "/"}, {":method", "GET"}, {"x-request-id", "foo"}};
   const Http::TestResponseHeaderMapImpl response_headers_{{":status", "500"}};
-  SystemTime start_time_;
 
   NiceMock<ThreadLocal::MockInstance> tls_;
   std::unique_ptr<Driver> driver_;
@@ -85,6 +89,7 @@ public:
   NiceMock<LocalInfo::MockLocalInfo> local_info_;
 
   NiceMock<Tracing::MockConfig> config_;
+  StreamInfo::MockStreamInfo stream_info_;
 };
 
 TEST_F(DatadogDriverTest, InitializeDriver) {
@@ -149,8 +154,8 @@ TEST_F(DatadogDriverTest, FlushSpansTimer) {
             return &request;
           }));
 
-  Tracing::SpanPtr span = driver_->startSpan(config_, request_headers_, operation_name_,
-                                             start_time_, {Tracing::Reason::Sampling, true});
+  Tracing::SpanPtr span =
+      driver_->startSpan(config_, request_headers_, operation_name_, stream_info_);
   span->finishSpan();
 
   // Timer should be re-enabled.
@@ -191,8 +196,8 @@ TEST_F(DatadogDriverTest, NoBody) {
             return &request;
           }));
 
-  Tracing::SpanPtr span = driver_->startSpan(config_, request_headers_, operation_name_,
-                                             start_time_, {Tracing::Reason::Sampling, true});
+  Tracing::SpanPtr span =
+      driver_->startSpan(config_, request_headers_, operation_name_, stream_info_);
   span->finishSpan();
 
   // Timer should be re-enabled.
@@ -234,10 +239,7 @@ TEST_F(DatadogDriverTest, SkipReportIfCollectorClusterHasBeenRemoved) {
     EXPECT_CALL(cm_.thread_local_cluster_.async_client_, send_(_, _, _)).Times(0);
 
     // Trigger flush of a span.
-    driver_
-        ->startSpan(config_, request_headers_, operation_name_, start_time_,
-                    {Tracing::Reason::Sampling, true})
-        ->finishSpan();
+    driver_->startSpan(config_, request_headers_, operation_name_, stream_info_)->finishSpan();
     timer_->invokeCallback();
 
     // Verify observability.
@@ -260,10 +262,7 @@ TEST_F(DatadogDriverTest, SkipReportIfCollectorClusterHasBeenRemoved) {
     EXPECT_CALL(cm_.thread_local_cluster_.async_client_, send_(_, _, _)).Times(0);
 
     // Trigger flush of a span.
-    driver_
-        ->startSpan(config_, request_headers_, operation_name_, start_time_,
-                    {Tracing::Reason::Sampling, true})
-        ->finishSpan();
+    driver_->startSpan(config_, request_headers_, operation_name_, stream_info_)->finishSpan();
     timer_->invokeCallback();
 
     // Verify observability.
@@ -288,10 +287,7 @@ TEST_F(DatadogDriverTest, SkipReportIfCollectorClusterHasBeenRemoved) {
         .WillOnce(DoAll(WithArg<1>(SaveArgAddress(&callback)), Return(&request)));
 
     // Trigger flush of a span.
-    driver_
-        ->startSpan(config_, request_headers_, operation_name_, start_time_,
-                    {Tracing::Reason::Sampling, true})
-        ->finishSpan();
+    driver_->startSpan(config_, request_headers_, operation_name_, stream_info_)->finishSpan();
     timer_->invokeCallback();
 
     // Complete in-flight request.
@@ -319,10 +315,7 @@ TEST_F(DatadogDriverTest, SkipReportIfCollectorClusterHasBeenRemoved) {
         .WillOnce(DoAll(WithArg<1>(SaveArgAddress(&callback)), Return(&request)));
 
     // Trigger flush of a span.
-    driver_
-        ->startSpan(config_, request_headers_, operation_name_, start_time_,
-                    {Tracing::Reason::Sampling, true})
-        ->finishSpan();
+    driver_->startSpan(config_, request_headers_, operation_name_, stream_info_)->finishSpan();
     timer_->invokeCallback();
 
     // Complete in-flight request.
@@ -361,28 +354,16 @@ TEST_F(DatadogDriverTest, CancelInflightRequestsOnDestruction) {
   EXPECT_CALL(*timer_, enableTimer(std::chrono::milliseconds(900), _)).Times(4);
 
   // Trigger 1st report request.
-  driver_
-      ->startSpan(config_, request_headers_, operation_name_, start_time_,
-                  {Tracing::Reason::Sampling, true})
-      ->finishSpan();
+  driver_->startSpan(config_, request_headers_, operation_name_, stream_info_)->finishSpan();
   timer_->invokeCallback();
   // Trigger 2nd report request.
-  driver_
-      ->startSpan(config_, request_headers_, operation_name_, start_time_,
-                  {Tracing::Reason::Sampling, true})
-      ->finishSpan();
+  driver_->startSpan(config_, request_headers_, operation_name_, stream_info_)->finishSpan();
   timer_->invokeCallback();
   // Trigger 3rd report request.
-  driver_
-      ->startSpan(config_, request_headers_, operation_name_, start_time_,
-                  {Tracing::Reason::Sampling, true})
-      ->finishSpan();
+  driver_->startSpan(config_, request_headers_, operation_name_, stream_info_)->finishSpan();
   timer_->invokeCallback();
   // Trigger 4th report request.
-  driver_
-      ->startSpan(config_, request_headers_, operation_name_, start_time_,
-                  {Tracing::Reason::Sampling, true})
-      ->finishSpan();
+  driver_->startSpan(config_, request_headers_, operation_name_, stream_info_)->finishSpan();
   timer_->invokeCallback();
 
   Http::ResponseMessagePtr msg(new Http::ResponseMessageImpl(

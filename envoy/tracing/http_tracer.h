@@ -22,8 +22,7 @@ public:
   virtual ~HttpTracer() = default;
 
   virtual SpanPtr startSpan(const Config& config, Http::RequestHeaderMap& request_headers,
-                            const StreamInfo::StreamInfo& stream_info,
-                            const Tracing::Decision tracing_decision) PURE;
+                            const StreamInfo::StreamInfo& stream_info) PURE;
 };
 
 using HttpTracerSharedPtr = std::shared_ptr<HttpTracer>;

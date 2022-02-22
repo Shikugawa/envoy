@@ -21,6 +21,12 @@ namespace {
 
 class XRayDriverTest : public ::testing::Test {
 public:
+  void SetUp() override {
+    EXPECT_CALL(stream_info_, traceReason()).WillRepeatedly(Return(Tracing::Reason::Sampling));
+    EXPECT_CALL(stream_info_, healthCheck()).WillRepeatedly(Return(false));
+    EXPECT_CALL(stream_info_, startTime()).WillRepeatedly(Return(SystemTime()));
+  }
+
   const std::string operation_name_ = "test_operation_name";
   absl::flat_hash_map<std::string, ProtobufWkt::Value> aws_metadata_;
   NiceMock<Server::Configuration::MockTracerFactoryContext> context_;
@@ -28,6 +34,7 @@ public:
   NiceMock<Tracing::MockConfig> tracing_config_;
   Http::TestRequestHeaderMapImpl request_headers_{
       {":authority", "api.amazon.com"}, {":path", "/"}, {":method", "GET"}};
+  StreamInfo::MockStreamInfo stream_info_;
 };
 
 TEST_F(XRayDriverTest, XRayTraceHeaderNotSampled) {
@@ -36,11 +43,7 @@ TEST_F(XRayDriverTest, XRayTraceHeaderNotSampled) {
   XRayConfiguration config{"" /*daemon_endpoint*/, "test_segment_name", "" /*sampling_rules*/,
                            "" /*origin*/, aws_metadata_};
   Driver driver(config, context_);
-
-  Tracing::Decision tracing_decision{Tracing::Reason::Sampling, false /*sampled*/};
-  Envoy::SystemTime start_time;
-  auto span = driver.startSpan(tracing_config_, request_headers_, operation_name_, start_time,
-                               tracing_decision);
+  auto span = driver.startSpan(tracing_config_, request_headers_, operation_name_, stream_info_);
   ASSERT_NE(span, nullptr);
   auto* xray_span = static_cast<XRay::Span*>(span.get());
   ASSERT_FALSE(xray_span->sampled());
@@ -52,11 +55,7 @@ TEST_F(XRayDriverTest, XRayTraceHeaderSampled) {
   XRayConfiguration config{"" /*daemon_endpoint*/, "test_segment_name", "" /*sampling_rules*/,
                            "" /*origin*/, aws_metadata_};
   Driver driver(config, context_);
-
-  Tracing::Decision tracing_decision{Tracing::Reason::Sampling, false /*sampled*/};
-  Envoy::SystemTime start_time;
-  auto span = driver.startSpan(tracing_config_, request_headers_, operation_name_, start_time,
-                               tracing_decision);
+  auto span = driver.startSpan(tracing_config_, request_headers_, operation_name_, stream_info_);
   ASSERT_NE(span, nullptr);
 }
 
@@ -66,11 +65,7 @@ TEST_F(XRayDriverTest, XRayTraceHeaderSamplingUnknown) {
   XRayConfiguration config{"" /*daemon_endpoint*/, "test_segment_name", "" /*sampling_rules*/,
                            "" /*origin*/, aws_metadata_};
   Driver driver(config, context_);
-
-  Tracing::Decision tracing_decision{Tracing::Reason::Sampling, false /*sampled*/};
-  Envoy::SystemTime start_time;
-  auto span = driver.startSpan(tracing_config_, request_headers_, operation_name_, start_time,
-                               tracing_decision);
+  auto span = driver.startSpan(tracing_config_, request_headers_, operation_name_, stream_info_);
   // sampling should fall back to the default manifest since:
   // a) there is no valid sampling decision in the X-Ray header
   // b) there are no sampling rules passed, so the default rules apply (1 req/sec and 5% after that
@@ -92,11 +87,7 @@ TEST_F(XRayDriverTest, XRayTraceHeaderWithoutSamplingDecision) {
         )EOF" /*sampling_rules*/,
                            "" /*origin*/, aws_metadata_};
   Driver driver(config, context_);
-
-  Tracing::Decision tracing_decision{Tracing::Reason::Sampling, false /*sampled*/};
-  Envoy::SystemTime start_time;
-  auto span = driver.startSpan(tracing_config_, request_headers_, operation_name_, start_time,
-                               tracing_decision);
+  auto span = driver.startSpan(tracing_config_, request_headers_, operation_name_, stream_info_);
   // sampling will not be done since:
   // a) there is no sampling decision in the X-Ray header
   // b) there is a custom sampling rule passed which still doesn't enforce sampling
@@ -110,10 +101,7 @@ TEST_F(XRayDriverTest, NoXRayTracerHeader) {
                            "" /*origin*/, aws_metadata_};
   Driver driver(config, context_);
 
-  Tracing::Decision tracing_decision{Tracing::Reason::Sampling, false /*sampled*/};
-  Envoy::SystemTime start_time;
-  auto span = driver.startSpan(tracing_config_, request_headers_, operation_name_, start_time,
-                               tracing_decision);
+  auto span = driver.startSpan(tracing_config_, request_headers_, operation_name_, stream_info_);
   // sampling should fall back to the default manifest since:
   // a) there is no X-Ray header to determine the sampling decision
   // b) there are no sampling rules passed, so the default rules apply (1 req/sec and 5% after that

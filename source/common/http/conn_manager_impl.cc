@@ -1086,13 +1086,11 @@ void ConnectionManagerImpl::ActiveStream::decodeHeaders(RequestHeaderMapPtr&& he
 }
 
 void ConnectionManagerImpl::ActiveStream::traceRequest() {
-  const Tracing::Decision tracing_decision =
-      Tracing::HttpTracerUtility::shouldTraceRequest(filter_manager_.streamInfo());
-  ConnectionManagerImpl::chargeTracingStats(tracing_decision.reason,
+  ConnectionManagerImpl::chargeTracingStats(filter_manager_.streamInfo().traceReason(),
                                             connection_manager_.config_.tracingStats());
 
   active_span_ = connection_manager_.tracer().startSpan(
-      *this, *request_headers_, filter_manager_.streamInfo(), tracing_decision);
+      *this, *request_headers_, filter_manager_.streamInfo());
 
   if (!active_span_) {
     return;

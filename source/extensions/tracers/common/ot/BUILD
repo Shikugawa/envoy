@@ -27,6 +27,7 @@ envoy_cc_library(
         "//source/common/http:header_map_lib",
         "//source/common/json:json_loader_lib",
         "//source/common/tracing:common_values_lib",
+        "//source/common/tracing:http_tracer_lib",
         "//source/common/tracing:null_span_lib",
     ],
 )

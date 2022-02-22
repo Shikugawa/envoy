@@ -46,17 +46,18 @@ Driver::Driver(const envoy::config::trace::v3::SkyWalkingConfig& proto_config,
 
 Tracing::SpanPtr Driver::startSpan(const Tracing::Config& config,
                                    Tracing::TraceContext& trace_context,
-                                   const std::string& operation_name, Envoy::SystemTime start_time,
-                                   const Tracing::Decision decision) {
+                                   const std::string& operation_name,
+                                   const StreamInfo::StreamInfo& stream_info) {
   auto& tracer = tls_slot_ptr_->getTyped<Driver::TlsTracer>().tracer();
   TracingContextPtr tracing_context;
   // TODO(shikugawa): support extension span header.
   auto propagation_header = trace_context.getByKey(skywalkingPropagationHeaderKey());
   if (!propagation_header.has_value()) {
+    const auto tracing_decision = Tracing::HttpTracerUtility::shouldTraceRequest(stream_info);
     tracing_context = tracing_context_factory_->create();
     // Sampling status is always true on SkyWalking. But with disabling skip_analysis,
     // this span can't be analyzed.
-    if (!decision.traced) {
+    if (!tracing_decision.traced) {
       tracing_context->setSkipAnalysis();
     }
   } else {
@@ -71,7 +72,7 @@ Tracing::SpanPtr Driver::startSpan(const Tracing::Config& config,
     }
   }
 
-  return tracer.startSpan(config, start_time, operation_name, tracing_context, nullptr);
+  return tracer.startSpan(config, stream_info, operation_name, tracing_context);
 }
 
 void Driver::loadConfig(const envoy::config::trace::v3::ClientConfig& client_config,

@@ -77,9 +77,10 @@ TEST_F(TracerTest, TracerTestCreateNewSpanWithNoPropagationHeaders) {
 
   // Create a new SegmentContext.
   auto segment_context = SkyWalkingTestHelper::createSegmentContext(true, "CURR", "");
+  StreamInfo::MockStreamInfo stream_info;
 
-  Envoy::Tracing::SpanPtr org_span = tracer_->startSpan(
-      mock_tracing_config_, mock_time_source_.systemTime(), "TEST_OP", segment_context, nullptr);
+  Envoy::Tracing::SpanPtr org_span =
+      tracer_->startSpan(mock_tracing_config_, stream_info, "TEST_OP", segment_context);
   {
     Span* span = dynamic_cast<Span*>(org_span.get());
 
