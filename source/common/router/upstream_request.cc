@@ -447,7 +447,7 @@ void UpstreamRequest::onPoolReady(
     upstreamTiming().upstream_handshake_complete_ = upstream_timing.upstream_handshake_complete_;
     upstream_info.setUpstreamNumStreams(info.upstreamInfo().value().get().upstreamNumStreams());
   }
-
+  std::cout << upstream_local_address->asString() << std::endl;
   upstream_info.setUpstreamFilterState(std::make_shared<StreamInfo::FilterStateImpl>(
       info.filterState().parent()->parent(), StreamInfo::FilterState::LifeSpan::Request));
   upstream_info.setUpstreamLocalAddress(upstream_local_address);

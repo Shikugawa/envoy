@@ -55,9 +55,10 @@ using TracerPtr = std::unique_ptr<Tracer>;
 
 class Span : public Tracing::Span {
 public:
-  Span(Tracer& tracer, TracingContextPtr tracing_context, const std::string& operation);
+  Span(Tracer& tracer, TracingContextPtr tracing_context, const std::string& operation, const StreamInfo::StreamInfo&
+    stream_info);
   Span(Tracer& tracer, TracingSpanPtr span, TracingContextPtr tracing_context,
-       const std::string& operation);
+       const std::string& operation, const StreamInfo::StreamInfo& stream_info);
 
   // Tracing::Span
   void setOperation(absl::string_view) override {}
@@ -79,6 +80,7 @@ private:
   Tracer& parent_tracer_;
   TracingSpanPtr span_entity_;
   TracingContextPtr tracing_context_;
+  const StreamInfo::StreamInfo& stream_info_;
 };
 
 } // namespace SkyWalking

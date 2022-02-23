@@ -16,17 +16,21 @@ const Http::LowerCaseString& skywalkingPropagationHeaderKey() {
   CONSTRUCT_ON_FIRST_USE(Http::LowerCaseString, "sw8");
 }
 
-Span::Span(Tracer& tracer, TracingContextPtr tracing_context, const std::string& operation)
-    : parent_tracer_(tracer), tracing_context_(tracing_context) {
+Span::Span(Tracer& tracer, TracingContextPtr tracing_context, const std::string& operation, const StreamInfo::StreamInfo& stream_info)
+    : parent_tracer_(tracer), tracing_context_(tracing_context), stream_info_(stream_info) {
   span_entity_ = tracing_context->createEntrySpan();
   span_entity_->startSpan(operation);
 }
 
 Span::Span(Tracer& tracer, TracingSpanPtr span, TracingContextPtr tracing_context,
-           const std::string& operation)
-    : parent_tracer_(tracer), tracing_context_(tracing_context) {
+           const std::string& operation, const StreamInfo::StreamInfo& stream_info)
+    : parent_tracer_(tracer), tracing_context_(tracing_context), stream_info_(stream_info) {
   span_entity_ = tracing_context->createExitSpan(span);
   span_entity_->startSpan(operation);
+  // span_entity_->setPeer()
+  // std::stringstream out;
+  // std::cout << stream_info_.upstreamClusterInfo().value()->sourceAddress()->asString() << std::endl;
+  // std::cout << out.str() << std::endl;
 }
 
 void Span::setTag(absl::string_view name, absl::string_view value) {
@@ -70,7 +74,7 @@ void Span::injectContext(Tracing::TraceContext& trace_context) {
 }
 
 Tracing::SpanPtr Span::spawnChild(const Tracing::Config&, const std::string& name, SystemTime) {
-  return std::make_unique<Span>(parent_tracer_, span_entity_, tracing_context_, name);
+  return std::make_unique<Span>(parent_tracer_, span_entity_, tracing_context_, name, stream_info_);
 }
 
 Tracer::Tracer(TraceSegmentReporterPtr reporter) : reporter_(std::move(reporter)) {}
@@ -82,10 +86,10 @@ void Tracer::sendSegment(TracingContextPtr segment_context) {
   }
 }
 
-Tracing::SpanPtr Tracer::startSpan(const Tracing::Config&, const StreamInfo::StreamInfo&,
+Tracing::SpanPtr Tracer::startSpan(const Tracing::Config&, const StreamInfo::StreamInfo& stream_info,
                                    const std::string& operation,
                                    TracingContextPtr segment_context) {
-  return std::make_unique<Span>(*this, segment_context, operation);
+  return std::make_unique<Span>(*this, segment_context, operation, stream_info);
 }
 } // namespace SkyWalking
 } // namespace Tracers
