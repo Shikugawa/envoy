@@ -62,6 +62,13 @@ Tracing::SpanPtr Span::spawnChild(const Tracing::Config&, const std::string& nam
   return std::make_unique<Span>(child_span, tracing_context_, parent_tracer_);
 }
 
+void Span::setTracingInfo(const StreamInfo::StreamInfo& stream_info) {
+  if (stream_info.upstreamInfo() && stream_info.upstreamInfo()->upstreamHost()) {
+    span_entity_->setPeer(stream_info.upstreamInfo()->upstreamHost()->address()->asString());
+  } else {
+  }
+}
+
 Tracer::Tracer(TraceSegmentReporterPtr reporter) : reporter_(std::move(reporter)) {}
 
 void Tracer::sendSegment(TracingContextPtr segment_context) {

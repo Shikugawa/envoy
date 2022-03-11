@@ -1,5 +1,7 @@
-FROM envoyproxy/envoy-dev:latest
+FROM ubuntu:20.04
 
-COPY ./front-envoy-skywalking.yaml /etc/front-envoy.yaml
-RUN chmod go+r /etc/front-envoy.yaml
-CMD /usr/local/bin/envoy -c /etc/front-envoy.yaml --service-cluster front-proxy
+COPY envoy-static /usr/local/bin/envoy
+CMD [ "/usr/local/bin/envoy" ]
+# COPY ./front-envoy-skywalking.yaml /etc/front-envoy.yaml
+# RUN chmod go+r /etc/front-envoy.yaml
+# CMD /usr/local/bin/envoy -c /etc/front-envoy.yaml --service-cluster front-proxy

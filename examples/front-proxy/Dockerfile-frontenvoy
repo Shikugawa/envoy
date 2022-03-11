@@ -1,4 +1,7 @@
-FROM envoyproxy/envoy-dev:latest
+# FROM envoyproxy/envoy-dev:latest
+FROM ubuntu:20.04
+
+COPY envoy-static /usr/local/bin/envoy
 
 RUN apt-get update \
     && apt-get install --no-install-recommends -y curl \

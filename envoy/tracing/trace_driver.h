@@ -93,6 +93,8 @@ public:
    * @return trace ID as a hex string
    */
   virtual std::string getTraceIdAsHex() const PURE;
+
+  virtual void setTracingInfo(const StreamInfo::StreamInfo& stream_info) PURE;
 };
 
 /**

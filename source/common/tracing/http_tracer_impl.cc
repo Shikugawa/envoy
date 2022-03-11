@@ -202,6 +202,7 @@ void HttpTracerUtility::finalizeUpstreamSpan(Span& span,
   }
 
   setCommonTags(span, response_headers, response_trailers, stream_info, tracing_config);
+  span.setTracingInfo(stream_info);
 
   span.finishSpan();
 }

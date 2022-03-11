@@ -90,6 +90,8 @@ public:
    */
   Zipkin::Span& span() { return span_; }
 
+  void setTracingInfo(const StreamInfo::StreamInfo&) override {}
+
 private:
   Zipkin::Span span_;
   Zipkin::Tracer& tracer_;
