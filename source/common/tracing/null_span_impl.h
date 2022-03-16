@@ -30,6 +30,7 @@ public:
     return SpanPtr{new NullSpan()};
   }
   void setSampled(bool) override {}
+  void setTracingInfo(const StreamInfo::StreamInfo&) override {}
 };
 
 } // namespace Tracing

@@ -24,7 +24,7 @@ public:
    * Implements the abstract Driver's startSpan operation.
    */
   Tracing::SpanPtr startSpan(const Tracing::Config& config, Tracing::TraceContext& trace_context,
-                             const std::string& operation_name, SystemTime start_time,
+                             const std::string& operation_name, const StreamInfo::StreamInfo& stream_info,
                              const Tracing::Decision tracing_decision) override;
 
 private:

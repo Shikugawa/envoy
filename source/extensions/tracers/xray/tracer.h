@@ -216,6 +216,8 @@ public:
   Tracing::SpanPtr spawnChild(const Tracing::Config&, const std::string& operation_name,
                               Envoy::SystemTime start_time) override;
 
+  void setTracingInfo(const StreamInfo::StreamInfo&) override {}
+
 private:
   Envoy::TimeSource& time_source_;
   Random::RandomGenerator& random_;

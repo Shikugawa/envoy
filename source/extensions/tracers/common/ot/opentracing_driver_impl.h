@@ -46,6 +46,7 @@ public:
 
   // TODO: This method is unimplemented for OpenTracing.
   std::string getTraceIdAsHex() const override { return EMPTY_STRING; };
+  void setTracingInfo(const StreamInfo::StreamInfo&) override {}
 
 private:
   OpenTracingDriver& driver_;
@@ -65,7 +66,7 @@ public:
 
   // Tracer::TracingDriver
   Tracing::SpanPtr startSpan(const Tracing::Config& config, Tracing::TraceContext& trace_context,
-                             const std::string& operation_name, SystemTime start_time,
+                             const std::string& operation_name, const StreamInfo::StreamInfo& stream_info,
                              const Tracing::Decision tracing_decision) override;
 
   virtual opentracing::Tracer& tracer() PURE;

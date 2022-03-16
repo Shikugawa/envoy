@@ -93,6 +93,8 @@ public:
    * @return trace ID as a hex string
    */
   virtual std::string getTraceIdAsHex() const PURE;
+
+  virtual void setTracingInfo(const StreamInfo::StreamInfo& stream_info) PURE;
 };
 
 /**
@@ -106,7 +108,7 @@ public:
    * Start driver specific span.
    */
   virtual SpanPtr startSpan(const Config& config, TraceContext& trace_conext,
-                            const std::string& operation_name, SystemTime start_time,
+                            const std::string& operation_name, const StreamInfo::StreamInfo& stream_info,
                             const Tracing::Decision tracing_decision) PURE;
 };
 

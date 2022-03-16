@@ -55,8 +55,13 @@ UpstreamRequest::UpstreamRequest(RouterFilterInterface& parent,
       cleaned_up_(false), had_upstream_(false),
       stream_options_({can_send_early_data, can_use_http3}) {
   if (parent_.config().start_child_span_) {
+    // const auto& route = stream_info_.route();
+    // span_ = parent_.callbacks()->activeSpan().spawnChild(
+    //     parent_.callbacks()->tracingConfig(), "router " + parent.cluster()->name() + " egress",
+    //     parent.timeSource().systemTime());
+    const auto path = parent_.downstreamHeaders()->Path()->value().getStringView();
     span_ = parent_.callbacks()->activeSpan().spawnChild(
-        parent_.callbacks()->tracingConfig(), "router " + parent.cluster()->name() + " egress",
+        parent_.callbacks()->tracingConfig(), std::string(path),
         parent.timeSource().systemTime());
     if (parent.attemptCount() != 1) {
       // This is a retry request, add this metadata to span.
@@ -485,6 +490,8 @@ void UpstreamRequest::onPoolReady(
   }
 
   if (span_ != nullptr) {
+    std::cout << "unkounko" << std::endl;
+    std::cout << *parent_.downstreamHeaders() << std::endl;
     span_->injectContext(*parent_.downstreamHeaders());
   }
 

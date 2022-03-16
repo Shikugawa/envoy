@@ -45,7 +45,7 @@ public:
    *
    * @return The unique ptr to the newly created span.
    */
-  Tracing::SpanPtr startSpan(const Tracing::Config& config, SystemTime start_time,
+  Tracing::SpanPtr startSpan(const Tracing::Config& config, const StreamInfo::StreamInfo& stream_info,
                              const std::string& operation, TracingContextPtr tracing_context,
                              TracingSpanPtr parent);
 
@@ -57,9 +57,9 @@ using TracerPtr = std::unique_ptr<Tracer>;
 
 class Span : public Tracing::Span {
 public:
-  Span(TracingSpanPtr span_entity, TracingContextPtr tracing_context, Tracer& parent_tracer)
+  Span(TracingSpanPtr span_entity, TracingContextPtr tracing_context, Tracer& parent_tracer, const StreamInfo::StreamInfo& stream_info)
       : parent_tracer_(parent_tracer), span_entity_(span_entity),
-        tracing_context_(tracing_context) {}
+        tracing_context_(tracing_context), stream_info_(stream_info) {}
 
   // Tracing::Span
   void setOperation(absl::string_view) override {}
@@ -73,6 +73,7 @@ public:
   std::string getBaggage(absl::string_view) override { return EMPTY_STRING; }
   void setBaggage(absl::string_view, absl::string_view) override {}
   std::string getTraceIdAsHex() const override { return EMPTY_STRING; }
+  void setTracingInfo(const StreamInfo::StreamInfo&) override;
 
   const TracingContextPtr tracingContext() { return tracing_context_; }
   const TracingSpanPtr spanEntity() { return span_entity_; }
@@ -81,6 +82,7 @@ private:
   Tracer& parent_tracer_;
   TracingSpanPtr span_entity_;
   TracingContextPtr tracing_context_;
+  const StreamInfo::StreamInfo& stream_info_;
 };
 
 } // namespace SkyWalking
