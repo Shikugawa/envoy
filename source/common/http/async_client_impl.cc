@@ -264,6 +264,8 @@ AsyncRequestImpl::AsyncRequestImpl(RequestMessagePtr&& request, AsyncClientImpl&
 }
 
 void AsyncRequestImpl::initialize() {
+  std::cout << "unko" << std::endl;
+  std::cout << request_->headers() << std::endl;
   child_span_->injectContext(request_->headers());
   sendHeaders(request_->headers(), request_->body().length() == 0);
   if (request_->body().length() != 0) {

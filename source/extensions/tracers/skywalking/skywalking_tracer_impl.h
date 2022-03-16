@@ -25,7 +25,7 @@ public:
                   Server::Configuration::TracerFactoryContext& context);
 
   Tracing::SpanPtr startSpan(const Tracing::Config& config, Tracing::TraceContext& trace_context,
-                             const std::string& operation, Envoy::SystemTime start_time,
+                             const std::string& operation, const StreamInfo::StreamInfo& stream_info,
                              const Tracing::Decision decision) override;
 
 private:

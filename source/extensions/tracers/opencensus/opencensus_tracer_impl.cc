@@ -375,9 +375,9 @@ void Driver::applyTraceConfig(const opencensus::proto::trace::v1::TraceConfig& c
 
 Tracing::SpanPtr Driver::startSpan(const Tracing::Config& config,
                                    Tracing::TraceContext& trace_context,
-                                   const std::string& operation_name, SystemTime start_time,
+                                   const std::string& operation_name, const StreamInfo::StreamInfo& stream_info,
                                    const Tracing::Decision tracing_decision) {
-  return std::make_unique<Span>(config, oc_config_, trace_context, operation_name, start_time,
+  return std::make_unique<Span>(config, oc_config_, trace_context, operation_name, stream_info.startTime(),
                                 tracing_decision);
 }
 

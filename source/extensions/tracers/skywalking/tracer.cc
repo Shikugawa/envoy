@@ -50,16 +50,25 @@ void Span::injectContext(Tracing::TraceContext& trace_context) {
   // corresponding trace header is generated correctly. For this reason, we cannot directly use host
   // as argument. We need create a copy of std::string based on host and std::string will
   // automatically add '\0' to the end of the string content.
-  auto sw8_header = tracing_context_->createSW8HeaderValue(std::string(trace_context.authority()));
-  if (sw8_header.has_value()) {
-    trace_context.setByReferenceKey(skywalkingPropagationHeaderKey(), sw8_header.value());
+  if (stream_info_.upstreamInfo() && stream_info_.upstreamInfo()->upstreamHost()) {
+    auto sw8_header = tracing_context_->createSW8HeaderValue(stream_info_.upstreamInfo()->upstreamHost()->address()->asString());
+    std::cout << stream_info_.upstreamInfo()->upstreamHost()->address()->asString() << std::endl;
+    if (sw8_header.has_value()) {
+      trace_context.setByReferenceKey(skywalkingPropagationHeaderKey(), sw8_header.value());
+    }
+  } else {
+    auto sw8_header = tracing_context_->createSW8HeaderValue(std::string(trace_context.authority()));
+    
+    if (sw8_header.has_value()) {
+      trace_context.setByReferenceKey(skywalkingPropagationHeaderKey(), sw8_header.value());
+    }
   }
 }
 
 Tracing::SpanPtr Span::spawnChild(const Tracing::Config&, const std::string& name, SystemTime) {
   auto child_span = tracing_context_->createExitSpan(span_entity_);
   child_span->startSpan(name);
-  return std::make_unique<Span>(child_span, tracing_context_, parent_tracer_);
+  return std::make_unique<Span>(child_span, tracing_context_, parent_tracer_, stream_info_);
 }
 
 void Span::setTracingInfo(const StreamInfo::StreamInfo& stream_info) {
@@ -78,13 +87,13 @@ void Tracer::sendSegment(TracingContextPtr segment_context) {
   }
 }
 
-Tracing::SpanPtr Tracer::startSpan(const Tracing::Config&, SystemTime, const std::string& operation,
+Tracing::SpanPtr Tracer::startSpan(const Tracing::Config&, const StreamInfo::StreamInfo& stream_info, const std::string& operation,
                                    TracingContextPtr segment_context, TracingSpanPtr parent) {
   Tracing::SpanPtr span;
   auto span_entity = parent != nullptr ? segment_context->createExitSpan(parent)
                                        : segment_context->createEntrySpan();
   span_entity->startSpan(operation);
-  span = std::make_unique<Span>(span_entity, segment_context, *this);
+  span = std::make_unique<Span>(span_entity, segment_context, *this, stream_info);
   return span;
 }
 } // namespace SkyWalking

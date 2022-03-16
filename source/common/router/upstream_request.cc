@@ -490,6 +490,8 @@ void UpstreamRequest::onPoolReady(
   }
 
   if (span_ != nullptr) {
+    std::cout << "unkounko" << std::endl;
+    std::cout << *parent_.downstreamHeaders() << std::endl;
     span_->injectContext(*parent_.downstreamHeaders());
   }
 

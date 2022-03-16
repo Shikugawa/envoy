@@ -256,7 +256,7 @@ SpanPtr HttpTracerImpl::startSpan(const Config& config, Http::RequestHeaderMap& 
   }
 
   SpanPtr active_span = driver_->startSpan(config, request_headers, span_name,
-                                           stream_info.startTime(), tracing_decision);
+                                           stream_info, tracing_decision);
 
   // Set tags related to the local environment
   if (active_span) {
